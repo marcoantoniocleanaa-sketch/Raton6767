@@ -1,0 +1,433 @@
+-- SCRIPT RATON 🎃 (Versión Original Limpia - Con Bloqueo de Login Estricto para Android)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
+local Camera = Workspace.CurrentCamera
+
+local ESP_ENABLED = true
+local CUSTOM_SPEED = 16
+
+local ESP_COLOR = Color3.fromRGB(255, 0, 0)
+local TEXT_COLOR = Color3.fromRGB(255, 255, 255)
+local LINE_THICKNESS = 2.0
+local MIN_SPEED_THRESHOLD = 0.2
+local COOLDOWN_TIME = 2.0
+
+local espObjects = {}
+local lastPositions = {}
+local movementTimers = {}
+
+-- ==========================================
+-- INTERFAZ GRÁFICA (ESTADOS INICIALES)
+-- ==========================================
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ScriptRatonGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+-- Menú Principal: Completamente invisible e inactivo al inicio
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 260, 0, 230)
+MainFrame.Position = UDim2.new(0.5, -130, 0.4, -115)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = false 
+MainFrame.Visible = false 
+MainFrame.Parent = ScreenGui
+
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 10)
+Corner.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+Title.Text = " SCRIPT RATON 🎃"
+Title.TextColor3 = Color3.fromRGB(255, 140, 0)
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBold
+Title.BorderSizePixel = 0
+Title.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 10)
+TitleCorner.Parent = Title
+
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Size = UDim2.new(0, 220, 0, 40)
+ToggleButton.Position = UDim2.new(0.5, -110, 0, 55)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+ToggleButton.Text = "ESP: ACTIVADO"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 15
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.Parent = MainFrame
+
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(0, 8)
+ButtonCorner.Parent = ToggleButton
+
+local SpeedFrame = Instance.new("Frame")
+SpeedFrame.Name = "SpeedFrame"
+SpeedFrame.Size = UDim2.new(0, 220, 0, 45)
+SpeedFrame.Position = UDim2.new(0.5, -110, 0, 110)
+SpeedFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+SpeedFrame.BorderSizePixel = 0
+SpeedFrame.Parent = MainFrame
+
+local SpeedFrameCorner = Instance.new("UICorner")
+SpeedFrameCorner.CornerRadius = UDim.new(0, 8)
+SpeedFrameCorner.Parent = SpeedFrame
+
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(0, 120, 1, 0)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = " Velocidad [1-100]:"
+SpeedLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+SpeedLabel.TextSize = 14
+SpeedLabel.Font = Enum.Font.GothamBold
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SpeedLabel.Parent = SpeedFrame
+
+local SpeedInput = Instance.new("TextBox")
+SpeedInput.Size = UDim2.new(0, 80, 0, 30)
+SpeedInput.Position = UDim2.new(1, -90, 0.5, -15)
+SpeedInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+SpeedInput.Text = "16"
+SpeedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedInput.TextSize = 15
+SpeedInput.Font = Enum.Font.GothamBold
+SpeedInput.ClearTextOnFocus = true
+SpeedInput.Parent = SpeedFrame
+
+local InputCorner = Instance.new("UICorner")
+InputCorner.CornerRadius = UDim.new(0, 6)
+InputCorner.Parent = SpeedInput
+
+local Footer = Instance.new("TextLabel")
+Footer.Size = UDim2.new(1, 0, 0, 25)
+Footer.Position = UDim2.new(0, 0, 1, -25)
+Footer.BackgroundTransparency = 1
+Footer.Text = "Mueve el botón 🎃 donde quieras"
+Footer.TextColor3 = Color3.fromRGB(150, 150, 150)
+Footer.TextSize = 11
+Footer.Font = Enum.Font.Gotham
+Footer.Parent = MainFrame
+
+-- Botón flotante: Totalmente oculto e inerte al inicio
+local MobileMenuButton = Instance.new("TextButton")
+MobileMenuButton.Name = "MobileButton"
+MobileMenuButton.Size = UDim2.new(0, 60, 0, 60)
+MobileMenuButton.Position = UDim2.new(0.05, 0, 0.15, 0)
+MobileMenuButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MobileMenuButton.Text = "🎃"
+MobileMenuButton.TextSize = 25
+MobileMenuButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MobileMenuButton.Active = false 
+MobileMenuButton.Visible = false 
+MobileMenuButton.ZIndex = 10
+MobileMenuButton.Parent = ScreenGui
+
+local MobileCorner = Instance.new("UICorner")
+MobileCorner.CornerRadius = UDim.new(0, 30)
+MobileCorner.Parent = MobileMenuButton
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(255, 140, 0)
+UIStroke.Thickness = 1.5
+UIStroke.Parent = MobileMenuButton
+
+-- ==========================================
+-- MENÚ DE LOGIN PRINCIPAL
+-- ==========================================
+
+local LoginFrame = Instance.new("Frame")
+LoginFrame.Name = "LoginFrame"
+LoginFrame.Size = UDim2.new(0, 280, 0, 180)
+LoginFrame.Position = UDim2.new(0.5, -140, 0.4, -90)
+LoginFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+LoginFrame.BorderSizePixel = 0
+LoginFrame.Active = true
+LoginFrame.Parent = ScreenGui
+
+local LoginCorner = Instance.new("UICorner")
+LoginCorner.CornerRadius = UDim.new(0, 10)
+LoginCorner.Parent = LoginFrame
+
+local LoginTitle = Instance.new("TextLabel")
+LoginTitle.Name = "LoginTitle"
+LoginTitle.Size = UDim2.new(1, 0, 0, 40)
+LoginTitle.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+LoginTitle.Text = "SISTEMA DE LOGIN 🎃"
+LoginTitle.TextColor3 = Color3.fromRGB(255, 140, 0)
+LoginTitle.TextSize = 16
+LoginTitle.Font = Enum.Font.GothamBold
+LoginTitle.BorderSizePixel = 0
+LoginTitle.Parent = LoginFrame
+
+local LoginTitleCorner = Instance.new("UICorner")
+LoginTitleCorner.CornerRadius = UDim.new(0, 10)
+LoginTitleCorner.Parent = LoginTitle
+
+local PasswordInput = Instance.new("TextBox")
+PasswordInput.Name = "PasswordInput"
+PasswordInput.Size = UDim2.new(0, 220, 0, 35)
+PasswordInput.Position = UDim2.new(0.5, -110, 0, 60)
+PasswordInput.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+PasswordInput.Text = ""
+PasswordInput.PlaceholderText = "Escribe la contraseña..."
+PasswordInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+PasswordInput.TextSize = 14
+PasswordInput.Font = Enum.Font.Gotham
+PasswordInput.ClearTextOnFocus = true
+PasswordInput.Parent = LoginFrame
+
+local PasswordCorner = Instance.new("UICorner")
+PasswordCorner.CornerRadius = UDim.new(0, 6)
+PasswordCorner.Parent = PasswordInput
+
+local LoginButton = Instance.new("TextButton")
+LoginButton.Name = "LoginButton"
+LoginButton.Size = UDim2.new(0, 220, 0, 35)
+LoginButton.Position = UDim2.new(0.5, -110, 0, 110)
+LoginButton.BackgroundColor3 = Color3.fromRGB(255, 140, 0)
+LoginButton.Text = "INGRESAR"
+LoginButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+LoginButton.TextSize = 14
+LoginButton.Font = Enum.Font.GothamBold
+LoginButton.Parent = LoginFrame
+
+local LoginButtonCorner = Instance.new("UICorner")
+LoginButtonCorner.CornerRadius = UDim.new(0, 6)
+LoginButtonCorner.Parent = LoginButton
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Size = UDim2.new(1, 0, 0, 20)
+StatusLabel.Position = UDim2.new(0, 0, 1, -25)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Por favor introduce la contraseña requerida"
+StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+StatusLabel.TextSize = 11
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.Parent = LoginFrame
+
+-- Función de arrastre táctil aislada para el inicio
+local function makeDraggable(guiObject)
+    local dragging = false
+    local dragInput, dragStart, startPos
+
+    guiObject.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = guiObject.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    guiObject.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            guiObject.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+makeDraggable(LoginFrame)
+
+-- ==========================================
+-- ACTIVACIÓN POST-LOGIN (TU SCRIPT INTEGRAL)
+-- ==========================================
+
+local function iniciarScriptOriginal()
+    -- Destruir la ventana de ingreso
+    LoginFrame:Destroy()
+
+    -- Habilitar y mostrar los componentes de tu script intacto
+    MainFrame.Active = true
+    MainFrame.Visible = true
+    MobileMenuButton.Active = true
+    MobileMenuButton.Visible = true
+
+    -- Asignar arrastre táctil a tu menú e icono original
+    makeDraggable(MainFrame)
+    makeDraggable(MobileMenuButton)
+
+    -- Sistema de Toque Inteligente de tu script original
+    local touchStartX, touchStartY
+    local totalDelta = 0
+
+    MobileMenuButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            touchStartX = input.Position.X
+            touchStartY = input.Position.Y
+            totalDelta = 0
+        end
+    end)
+
+
+
+MobileMenuButton.InputChanged:Connect(function(input)
+if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and touchStartX then
+local currentX = input.Position.X
+local currentY = input.Position.Y
+totalDelta = totalDelta + math.abs(currentX - touchStartX) + math.abs(currentY - touchStartY)
+end
+end)
+MobileMenuButton.InputEnded:Connect(function(input)
+if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+if totalDelta < 15 then
+MainFrame.Visible = not MainFrame.Visible
+end
+touchStartX = nil
+touchStartY = nil
+end
+end)
+-- Lógica nativa de botones de tu interfaz
+ToggleButton.MouseButton1Click:Connect(function()
+ESP_ENABLED = not ESP_ENABLED
+if ESP_ENABLED then
+ToggleButton.Text = "ESP: ACTIVADO"
+ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+else
+ToggleButton.Text = "ESP: DESACTIVADO"
+ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+for _, objects in pairs(espObjects) do
+objects.Box.Visible = false
+objects.Text.Visible = false
+end
+end
+end)
+SpeedInput.FocusLost:Connect(function(enterPressed)
+local num = tonumber(SpeedInput.Text)
+if num then
+if num > 100 then num = 100 SpeedInput.Text = "100"
+elseif num < 0 then num = 0 SpeedInput.Text = "0" end
+CUSTOM_SPEED = num
+else
+SpeedInput.Text = tostring(CUSTOM_SPEED)
+end
+end)
+task.spawn(function()
+while task.wait(0.1) do
+pcall(function()
+if LocalPlayer.Character then
+local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+if humanoid and humanoid.WalkSpeed ~= CUSTOM_SPEED then
+humanoid.WalkSpeed = CUSTOM_SPEED
+end
+end
+end)
+end
+end)
+-- LÓGICA DE ESP ORIGINAL (SIN CAMBIOS)
+local function createESP(model)
+if espObjects[model] then return end
+local box = Drawing.new("Square")
+box.Visible = false
+box.Color = ESP_COLOR
+box.Thickness = LINE_THICKNESS
+box.Filled = false
+local text = Drawing.new("Text")
+text.Visible = false
+text.Color = TEXT_COLOR
+text.Size = 18
+text.Center = true
+text.Outline = true
+espObjects[model] = {Box = box, Text = text}
+end
+local function removeESP(model)
+if espObjects[model] then
+espObjects[model].Box:Remove(); espObjects[model].Text:Remove(); espObjects[model] = nil
+end
+lastPositions[model] = nil; movementTimers[model] = nil
+end
+local function isMonsterModel(model)
+if not model:IsA("Model") then return false end
+if model == LocalPlayer.Character then return false end
+local rootPart = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head")
+if rootPart and not Players:GetPlayerFromCharacter(model) then return true end
+return false
+end
+RunService.RenderStepped:Connect(function()
+local currentTime = os.clock()
+for _, model in ipairs(Workspace:GetDescendants()) do
+if isMonsterModel(model) then
+local rootPart = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head")
+if rootPart then
+local currentPos = rootPart.Position
+local lastPos = lastPositions[model]
+if not movementTimers[model] then movementTimers[model] = 0 end
+if lastPos then
+local velocity = (currentPos - lastPos).Magnitude
+if velocity > MIN_SPEED_THRESHOLD then movementTimers[model] = currentTime end
+end
+lastPositions[model] = currentPos
+if ESP_ENABLED and ((currentTime - movementTimers[model]) <= COOLDOWN_TIME) then
+createESP(model)
+local data = espObjects[model]
+if data then
+local screenPos, onScreen = Camera:WorldToViewportPoint(currentPos)
+if onScreen then
+local distance = (Camera.CFrame.Position - currentPos).Magnitude
+local sizeX = math.clamp(2500 / distance, 10, 300)
+local sizeY = math.clamp(3800 / distance, 15, 400)
+data.Box.Size = Vector2.new(sizeX, sizeY)
+data.Box.Position = Vector2.new(screenPos.X - (sizeX / 2), screenPos.Y - (sizeY / 2))
+data.Box.Visible = true
+data.Text.Text = "⚠️ [ENEMIGO] " .. model.Name
+data.Text.Position = Vector2.new(screenPos.X, screenPos.Y - (sizeY / 2) - 22)
+data.Text.Visible = true
+else
+data.Box.Visible = false; data.Text.Visible = false
+end
+end
+else
+if espObjects[model] then
+espObjects[model].Box.Visible = false
+espObjects[model].Text.Visible = false
+end
+end
+end
+else
+if espObjects[model] then removeESP(model) end
+end
+end
+end)
+Workspace.DescendantRemoving:Connect(function(descendant)
+if espObjects[descendant] then removeESP(descendant) end
+end)
+end
+-- Evento de verificación estricto
+LoginButton.MouseButton1Click:Connect(function()
+if PasswordInput.Text == "mouse67" then
+StatusLabel.TextColor3 = Color3.fromRGB(0, 200, 50)
+StatusLabel.Text = "¡Contraseña Correcta! Cargando..."
+task.wait(0.5)
+iniciarScriptOriginal()
+else
+StatusLabel.TextColor3 = Color3.fromRGB(220, 50, 50)
+StatusLabel.Text = "Contraseña Incorrecta. Inténtalo de nuevo."
+PasswordInput.Text = ""
+end
+end)
